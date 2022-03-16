@@ -7,39 +7,48 @@
 clear; clc; close all;
 
 % Define path and filename.
-mypath = 'D:\extracted angle\SN010\';
+mypath = 'D:\extracted angle\';
+mysubj = 'SN015';
+mypath = strcat(mypath,mysubj);
 
 % First, load the angle trajectories file......
-myfile = 'SN010_0005_towel_L01.txt';
+myfile = '_towel_L';
 ntrial = 10;   % <<< We define number of trials in a task
-mydata = readtable(strcat(mypath,myfile), 'HeaderLines',2);  
-%mydata.Properties.VariableNames{'Var1'}='trial';
+mydata = readtable(strcat(mypath,'\',mysubj,myfile,'.txt'), 'HeaderLines',1);  
+
 mydata.Properties.VariableNames={'trial','LElbowX','LElbowY','LElbowZ',...
     'LShoulderX','LShoulderY','LShoulderZ','LWristX','LWristY',...
     'LWristZ','HeadX','HeadY','HeadZ','PelvisX',...	
 	'PelvisY','PelvisZ','RElbowX','RElbowY','RElbowZ','RShoulderX',...	
 	'RShoulderY','RShoulderZ','RWristX','RWristY','RWristZ',...
     'TxX','TxY','TxZ'};
+
+
+if(1)
+%%%%%%%%%%%%%  ANALOG SIGNAL FROM THE TABLE LOADCELLS  %%%%%%%%%%%%%%%%%%%%
+analogfile = strcat(myfile,'_loadcells.txt');
+loadcells  = readtable(strcat(mypath,'\',mysubj,analogfile), ...
+                        'Delimiter','\t','HeaderLines', 0, 'ReadVariableNames', true);
+loadcells = loadcells{:,[1,2,4]};  % Take only relevant columns
+
+% Define and apply Butterworth filter for analog signals....
+%Fc = 10; Fs_kin = 2000;     % 10 Hz cutoff frequency, 2000 Hz sampling rate.
+%[B,A]=butter(2,Fc/(Fs_kin/2));
+%loadcells = filtfilt(B,A,loadcells);
+
+% Take note that the analog signal has higher sampling rate!
+% Time-normalize to be the same as the kinematic data.................
+loadcell2 = interp1(1:length(loadcells), ...  % Size of original data
+                    loadcells, ...            % Name of original data
+                    linspace(1,length(loadcells),size(mydata,1)));   % Downsizing!
+end
+
+
 if(0)
 % Load the right hand marker trajectories.......
 myfile  = 'SN005_0008_towel_L02_Rhand.txt';
 myRhand = readtable(strcat(mypath,myfile),'Delimiter','\t','HeaderLines',0);
 myRhand.Rhand_path = sqrt(myRhand.X.^2 + myRhand.Y.^2 + myRhand.Z.^2);
-
-% Load the right shoulder marker trajectories.......
-myfile  = 'SN005_0008_towel_L02_Rshoulder.txt';
-myRshoul= readtable(strcat(mypath,myfile),'Delimiter','\t','HeaderLines',0);  
-myRshoul.Rshoul_path = sqrt(myRshoul.X.^2 + myRshoul.Y.^2 + myRshoul.Z.^2);
-
-% Load the left hand marker trajectories.......
-myfile  = 'SN005_0008_towel_L02_Lhand.txt';
-myLhand = readtable(strcat(mypath,myfile),'Delimiter','\t','HeaderLines',0); 
-myLhand.Lhand_path = sqrt(myLhand.X.^2 + myLhand.Y.^2 + myLhand.Z.^2);
-
-% Load the left shoulder marker trajectories.......
-myfile  = 'SN005_0008_towel_L02_Lshoulder.txt';
-myLshoul= readtable(strcat(mypath,myfile),'Delimiter','\t','HeaderLines',0);  
-myLshoul.Lshoul_path = sqrt(myLshoul.X.^2 + myLshoul.Y.^2 + myLshoul.Z.^2);
 
 % Combine all table into one.
 T = [mydata, table(myRhand.Y,  'VariableNames',{'Rhand_path'}), ... 
@@ -48,64 +57,21 @@ T = [mydata, table(myRhand.Y,  'VariableNames',{'Rhand_path'}), ...
           table(myLshoul.Lshoul_path,'VariableNames',{'Lshoul_path'}) ];
 end
       
-if(0)     
-%%%%%%%%%%%% Do mini freq domain analyses using CSD %%%%%%%%%%%%%%%%
-var1 = mydata{1:3000,9}; 
-Fs = 200;                % Sampling frequency                    
-T  = 1/Fs;               % Sampling period       
-L  = length(var1);       % Length of signal
-t  = (0:L-1)*T;          % Time vector
-Y  = fft(squeeze(var1)); % Do FFT on the amplitude data
-YL = abs(Y/L);
-P1 = YL(1:L/2+1);
-P1(2:end-1) = 2*P1(2:end-1);
-f = Fs*(0:(L/2))/L;      % Freq-range for X-axis, folded.
-plot(f,P1)               % Plot the single-sided spectrum 
-title('Single-Sided Amplitude Spectrum of X(t)')
-xlabel('f (Hz)'); ylabel('|P1(f)|')
-xlim([0,15]); ylim([-2 20]);
 
-hold on;
 
-var1 = mydata{1:3000,18}; 
-Fs = 200;                % Sampling frequency                    
-T  = 1/Fs;               % Sampling period       
-L  = length(var1);       % Length of signal
-t  = (0:L-1)*T;          % Time vector
-Y  = fft(squeeze(var1)); % Do FFT on the amplitude data
-YL = abs(Y/L);
-P2 = YL(1:L/2+1);
-P2(2:end-1) = 2*P2(2:end-1);
-f = Fs*(0:(L/2))/L;      % Freq-range for X-axis, folded.
-plot(f,P2)               % Plot the single-sided spectrum 
-title('Single-Sided Amplitude Spectrum of X(t)')
-xlabel('f (Hz)'); ylabel('|P2(f)|')
-xlim([0,15]); ylim([-2 20]);
 
-%%%% Cross spectrum analysis, measuring coherence %%%%%
-numer = (abs(cpsd(P1,P2))).^2;
-denom = abs(cpsd(P1,P1)).* abs(cpsd(P2,P2));
-coherence = numer ./ denom; 
-plot(coherence, 'b'); hold on;
-%mscohere(P1,P2);  % or, using the function
-end      
-
-      
 % Which joint angle is the cleanest? You may want to plot other
 % trajectories too as comparison!!
-plot(zscore(mydata.LElbowX)); hold on;
-plot(zscore(mydata.RElbowX));
-%plot(zscore(abcde.Z));
-%plot(zscore(T.Lhand_path)); 
-%plot(diff(T.Rhand_path)); hold on;
-%plot(zscore(T.Rhand_path));
-%plot(zscore(T.Lshoul_path));
-%[x y] = ginput(ntrial*2);  
+plot(zscore(mydata.RElbowX), 'k'); hold on;
+plot(zscore(mydata.LElbowX), 'b');
+plot(zscore(loadcell2(:,2)), '.');
+plot(zscore(loadcell2(:,3)), '.');
+
 
 %plot(zscore(mydata.Index_pos_Z),'r'); hold on; % For HAND only!
 
 %%%%%%%%%%%%%%%% I found this code online %%%%%%%%%%%%%%%%
-ntrial = 10;%10
+ntrial = 10;
 xlim([-100,5000]); X = []; Y = [];
 title('Press Enter to Quit')
 while 1
@@ -120,7 +86,7 @@ while 1
         xlim([ax(1)+1000, ax(2)+1000]);
     else
         X=[X;x];
-        line([x x],[-2 2],'Color','g');
+        line([x x],[-3 3],'Color','g');
         %Y=[Y;y];
     end;
 end
@@ -143,9 +109,9 @@ nevents = input('How many events per trial (2 or 3)?  ');
 % 2 phases. Phase-1 involves bilateral arm, phase-2 is the lateral fold.
 % Now estimated start, middle, and stop by visual inspection!!
 if nevents == 3
-     start  = X(1:nevents:length(X));
+     start  = X(1:nevents:length(X));  start = start - 50;
      middle = X(2:nevents:length(X));
-     stop   = X(3:nevents:length(X));
+     stop   = X(3:nevents:length(X));  stop = stop + 50;
      
      % Obtain the subset of the original data from start to stop ONLY...
      for k = 1:ntrial
@@ -201,15 +167,21 @@ all_tnorm = array2table(all_tnorm,'VariableNames', ...
                         [mydata.Properties.VariableNames 'phase' ] );
 
 %plot(all_tnorm.Index_pos_Z);
-plot(all_tnorm.LElbowX)
+
+% It's wise to plot the curves again with the segmentation indices for reference!!
+figure(3)
+  plot(zscore(mydata.RElbowX), 'k'); hold on;
+  plot(zscore(mydata.LElbowX), 'b');
+  xlim([-100,3000]);
+  line([X X],[-3 3],'Color','g');
+  savefig( strcat(mypath,'\',mysubj,myfile) );
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
-
 % Save the cut trajectories to a textfile. Ask whether we want to save it.
-fname = input('What is your filename you want to save? ','s');
-fname = strcat(mypath,fname,'.txt');   % the same filepath
+fname = strcat('cut',myfile,'.txt');
+fname = strcat(mypath,'\',fname)   % the same filepath
 sprintf("Saving the segmented files")
 writetable(all_tnorm, fname)
+save(strcat(mypath,'\',mysubj,myfile));
 
