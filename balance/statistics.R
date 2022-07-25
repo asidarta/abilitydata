@@ -13,11 +13,11 @@ mydata <- read.csv(paste(mdir,"balancestatic2.csv",sep=""),header=T,sep=",")
 mydata[,1:4] <- lapply(mydata[,1:4], factor)
 
 ezANOVA( data=mydata
-         , dv=area
+         , dv=p50Y
          , wid=subj
          , between=.(age)
          , within=.(side,task))
 
-summarySE(mydata, "area", c("task"))
-summarySE(mydata, "mFreqx", "task")
-summarySE(mydata, "p50_Y", "task")
+summarySE(mydata, "Vely", c("task"))
+summarySE(mydata, "mfreqy", "task")
+summarySE(mydata, "area", "age")

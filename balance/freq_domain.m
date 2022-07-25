@@ -2,7 +2,7 @@
 
 function [powerX,p50,p95,spm1,spm2,cfreq,freqd,f,Y] = freq_domain(tdata, Fs)
 
-    % Compute Freq-domain variables to quantify time-varying centre of pressure (COP)
+    % Compute Freq-domain variables to quantify centre of pressure (COP) in a particular direction
     % Inputs   : time-series (tdata) and sampling freq (Fs)
     % Outputs  : several parameters in the frequency domain
 
