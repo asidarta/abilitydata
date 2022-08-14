@@ -2,15 +2,17 @@
 % Created: 3 Mar 2021. Last revision: 17 Mar 2021
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [mysegment, emg_clean] = emg_preproc (sampleinfo, ind, emgdata, mvc, showplot)
-% This function performs preprocessing of EMG and MVC data, with inputs: 
+
+function [myenvel, emg_clean] = emg_preproc (sampleinfo, ind, emgdata, mypart, showplot)
+% This function allows preprocessing of EMG data such as bandpass filter, rectifier, and
+% envelope extraction. It also allow us to remove unwanted trial. The inputs are:
 %    sampleinfo: an array containing Fs and sf
 %    ind: event markers, indices
 %    emgdata: vector containing recording of one EMG sensor
-%    mvc: a flag to indicate if this is mvcdata
+%    mypart: a flag to indicate if this is perturbation trial or not
 %    showplot: a flag to show figures or not
 % It then returns OUTPUT:
-%    mysegment: the preprocessed data we want
+%    myenvel: the envelope of the EMG data we want
 %    emg_clean: filtered EMG data
 
 % (1) EMG Data timing information, taken from 'sampleinfo' input
@@ -32,8 +34,6 @@ mystart = 5; myend = length(emgdata)-5;
 %% (2) Load event marker data (index, only for Qualisys)
 % Event marker data = take Frame (samples) not the Time (sec)!
 if ~isempty(ind)
-    % If not empty or there are > 2 event markers, then it's perturbation trials
-    mvcdata = false;
     % Load event marker data (index, only for Qualisys)
     ind = struct2cell(ind);   % Convert struct type to cell first...
     % Now we extract the Frame (samples) not the Time (sec)!
@@ -47,7 +47,7 @@ if ~isempty(ind)
         ind(length(ind)) = [];    % throw away from the last number!
     end
 else
-    mvcdata = mvc;    % this indicates it's for MVC
+%    mvcdata = mvc;    % this indicates it's for MVC
 end
 
 
@@ -71,12 +71,13 @@ emg_clean = emg_clean0;
 %% (4) Perform FFT to see the freq content
 if(showplot)
     figure(1)
-    subplot(2,1,1)
+    %subplot(2,1,1)
     plot(emgdata,'k'); hold on;
     plot(emg_clean,'y'); 
+    %ylim([-3E+5 3E+5]);
     title('Raw EMG (black) and filtered EMG data (yellow)');
     % Draw multiple lines! Very nice, I found this feature online ---
-    if ~mvcdata, arrayfun(@(a)xline(a),ind); end;
+    if (mypart==2), arrayfun(@(a)xline(a),ind); end;
     hold off;
 end
 
@@ -122,13 +123,13 @@ nn = 50;
 emg_clean_envelope = envelope(emg_clean_abs,nn,'peak');
 
 if(showplot)
-     figure(1)
-     subplot(2,1,2)
-     plot(emg_clean_abs,'y'); hold on;
-     plot(emg_clean_envelope,'r'); 
-     if ~mvcdata, arrayfun(@(a)xline(a),ind); end;
-     title('Linear envelope (red) and the rectified EMG data (yellow)')
-     hold off;
+	%figure(1)
+    %subplot(2,1,2)
+    %plot(emg_clean_abs,'y'); hold on;
+    %plot(emg_clean_envelope,'r'); 
+    %if ~mvcdata, arrayfun(@(a)xline(a),ind); end;
+    %title('Linear envelope (red) and the rectified EMG data (yellow)')
+    %hold off;
 end
 
 % Now we define start/stop for MVC data only (not for trial data)! Use manual
@@ -141,17 +142,19 @@ end
 
 
 %% (6) Now transfer all trial segments of interest into a new variable. 
-% Note: For trial data, the ind is not empty but contains event marker. Use it to 
-% define the start/stop of the window or segment we are interested in; which coverts 
-% 250 msec (500 frames) before and 1000 msec (2000 frames) after the event trigger.
-% For MVC data, the start/stop was defined manually.
-if mvcdata  
-    mystart = 1; %ind(1:2:5);         % Obtain the start points from the ind array
-    myend   = length(emgdata)-1;%ind(2:2:6);         % And... the end points 
+% Note: For perturbation trial data, 'ind' contains event marker. Use it to define the 
+% start/stop of the window or segment of interest; which coverts 250 msec (500 frames) 
+% before and 1000 msec (2000 frames) after the event trigger.
+if (mypart==1)  
+    mystart = ind(1);      % Obtain the start marker from the ind array
+    myend   = ind(2);      % And... the stop marker 
 else
     if(~isempty(ind))
-        mystart = ind - 0.25*Fs;  % S01-S05: 0.05; S06-S11: 0.55
-        myend   = ind + 1.0*Fs;   % S01-S05: 0.5; S06-S11: 0.00
+        mystart = ind - 0.25*Fs;   % S01-S05: 0.05; S06-S11: 0.55
+        myend   = ind + 1.0*Fs;    % S01-S05: 0.5; S06-S11: 0.00
+    elseif (size(ind,1) == 2)
+        mystart = ind(1);          % Reserved for quiet standing task
+        myend   = ind(2);          % Reserved for quiet standing task 
     end
 end
 
@@ -160,8 +163,8 @@ end
 % selection (MVC) we should do time-interpolation to 2000 data points, so that 
 % it'll be the same for all trials.
 for j = 1:length(mystart)
-    if mvcdata
-        npoints = myend(j)-mystart(j)+1;  stretch = 2000;
+    if (mypart==1)
+        npoints = myend(j)-mystart(j)+1;  stretch = 2501;   %%%>>>>>>> For quiet standing
         piece = interp1(1:npoints, emg_clean_envelope(mystart(j):myend(j)), ...
                     linspace(1,npoints,stretch));   % interpolate
         piece = piece';  % transpose (flip!)
@@ -172,11 +175,41 @@ for j = 1:length(mystart)
 end
 %size(eachtrial)
 
-% if mvcdata
-     mysegment = eachtrial;
-% else
-%     mysegment = mean(eachtrial,2);
-% end
+% Pass the wanted data into 'myenvel' variable as the function output
+myenvel = eachtrial;
+%myenvel = mean(eachtrial,2);
+
+
+
+
+%% (7) Allow user to view the data and remove unwanted data. This feature is only
+% applicable for perturbation trials. For quiet standing, no way to remove certain trial.
+
+%finished = false;   % Define a flag indicator to denote finished
+if(showplot)
+%while (~finished)   % loop until 'finished' flag is true
+    if(length(ind)>1)
+        figure(2)
+        plot( [-0.25*Fs:1.0*Fs], myenvel );   % First, show the original content
+        hold on; legend;
+        xline(0);
+        xticklabels([-250:250:1000]); title('EMG envelope of each trial'); 
+        hold off;
+%         toremove = input('   Select the trial to remove (press <Enter> if none!) ');
+%         myenvel(:,toremove)=[];  % Remove outlier trial, if any! 
+%         plot( [-0.25*Fs:1.0*Fs], myenvel );    % Then show the revised content
+%         hold on; legend;
+%         xline(0);
+%         xticklabels([-250:250:1000]); title('EMG envelope of each trial'); 
+%         hold off;
+%         finished = boolean(input('   Done and ready to proceed? (0=No; 1=Yes)'));
+    end
+    %pause(0.1);
+%end
+end
+
+
+
 
 
 end

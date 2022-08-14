@@ -3,10 +3,10 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-function latency_in_time = get_latency (mydata, ref, Fs)
+function latencyout = get_latency (mydata, ref, Fs, emglabel)
 % This function extracts latency of an EMG dataset w.r.t perturbation onset!
 % The input is the cleaned EMG data and a reference sample point (perturbation onset!)
-% Fs = sample rate
+% Fs = sample rate;  peak500 = max amplitude within 500 msec post-perturbation
 
 
 % Excitation detector: We assume activity that occurs way before the perturbation to be 
@@ -15,16 +15,30 @@ function latency_in_time = get_latency (mydata, ref, Fs)
 % Or excitation = baseline + 10 % of (maximum peak - baseline)
 
 try
-    baseline = mean(mydata(1:100));
+    % Baseline activity is taken as average activity prior to perturbation
+    baseline = mean(mydata(1:500));
     datapeak = max(mydata) - baseline;
-    excite = find(mydata(ref:length(mydata)) > baseline+0.1*datapeak );
+    % Start of muscle excitation is w.r.t to the perturbation onset, e.g. excite = 230 
+    % is the 230th element post perturbation. Note I also added an offset, such that 
+    % the start of excitation at least > 20 msec post perturbation onset.
+    excite = find(mydata((ref+40):length(mydata)) > baseline+0.1*datapeak,1);
 
-    excite(1);
-    latency_in_samples = excite(1);
-    latency_in_time = latency_in_samples/Fs;
+    % Extract latency and peak
+    latency_in_sample = excite+40;
+    latency_in_time = latency_in_sample/Fs;
+    peak500 = max(mydata(latency_in_sample: latency_in_sample+ 0.5*Fs)) - baseline;
+    latency_in_time = latency_in_sample/Fs;
 catch
     latency_in_time = 0;
+    latency_in_sample = 0;
+    peak500 = 0;
     warning('!! No latency found. This is not perturbation trial');
 end
+
+% Pack the output information as struct
+latencyout = struct('Muscle', emglabel,...
+                    'Latency', latency_in_time,...
+                    'Latency_sample', latency_in_sample,...
+                    'Peak500', peak500);
 
 end
